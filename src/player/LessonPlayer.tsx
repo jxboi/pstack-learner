@@ -292,17 +292,19 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
 
   return (
     <div className="player">
-      <div className="container" style={{ maxWidth: 760 }}>
-        <div className="player-top">
-          <Link to={`/unit/${unit.id}`} className="player-close" aria-label="Close lesson">
-            ✕
-          </Link>
-          <div className="player-progress" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-            <div style={{ width: `${Math.max(3, progress * 100)}%` }} />
+      <div className="player-top-bar">
+        <div className="container" style={{ maxWidth: 760 }}>
+          <div className="player-top">
+            <Link to={`/unit/${unit.id}`} className="player-close" aria-label="Close lesson">
+              ✕
+            </Link>
+            <div className="player-progress" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+              <div style={{ width: `${Math.max(3, progress * 100)}%` }} />
+            </div>
+            <span className="chip" title="Step">
+              {index + 1}/{lesson.steps.length}
+            </span>
           </div>
-          <span className="chip" title="Step">
-            {index + 1}/{lesson.steps.length}
-          </span>
         </div>
       </div>
       <div className="player-body">
@@ -342,8 +344,8 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
                 {attempts >= 2 ? <Markdown text={explain} /> : <Markdown text={hint ?? 'Take another look and try again. You can do this.'} />}
               </motion.div>
             )}
-            {status === 'idle' && !question && <span className="muted" style={{ fontWeight: 600, fontSize: 14 }}>Press Enter or Continue when you are ready.</span>}
-            {status === 'idle' && question && !ready && <span className="muted" style={{ fontWeight: 600, fontSize: 14 }}>Answer to continue.</span>}
+            {status === 'idle' && !question && <span className="muted idle-hint" style={{ fontWeight: 600, fontSize: 14 }}>Press Enter or Continue when you are ready.</span>}
+            {status === 'idle' && question && !ready && <span className="muted idle-hint" style={{ fontWeight: 600, fontSize: 14 }}>Answer to continue.</span>}
           </div>
           {!question && (
             <button className="btn btn-primary btn-lg" data-primary="1" onClick={advance}>

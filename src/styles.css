@@ -288,6 +288,7 @@ textarea.input {
   position: sticky;
   top: 0;
   z-index: 40;
+  padding-top: env(safe-area-inset-top);
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid var(--line);
@@ -845,11 +846,27 @@ textarea.input {
   flex-direction: column;
   background: var(--bg);
 }
+.player-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding-top: env(safe-area-inset-top);
+}
 .player-top {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 16px 0;
+}
+@media (max-width: 640px) {
+  .player-top {
+    padding: 10px 0;
+    gap: 12px;
+  }
+  .idle-hint {
+    display: none;
+  }
 }
 .player-close {
   width: 40px;
@@ -1211,7 +1228,22 @@ textarea.input {
 }
 @media (max-width: 560px) {
   .match-grid {
-    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .match-col {
+    gap: 8px;
+  }
+  .match-tile {
+    padding: 10px;
+    font-size: 13.5px;
+    line-height: 1.35;
+    min-height: 48px;
+  }
+  .match-tile .pair-dot {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+    margin-right: 6px;
   }
 }
 
