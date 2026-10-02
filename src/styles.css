@@ -1700,6 +1700,25 @@ textarea.input {
   }
 }
 
+.repo-tree {
+  max-height: 380px;
+  overflow: auto;
+}
+.repo-inline-info {
+  display: none;
+}
+@media (max-width: 640px) {
+  .repo-tree {
+    max-height: none;
+  }
+  .repo-inline-info {
+    display: block;
+  }
+  .repo-side {
+    display: none;
+  }
+}
+
 .player > .container {
   width: 100%;
 }

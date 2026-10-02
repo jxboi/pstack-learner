@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 
 /* ---------------- agent loop ---------------- */
@@ -383,7 +383,28 @@ function TreeRow({ node, depth, sel, onSel, open, toggle, path }: { node: Node; 
         <span>{isDir ? '📁' : '📄'}</span>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
       </button>
+      {sel === path && (
+        <div className="repo-inline-info" style={{ margin: `2px 8px 8px ${28 + depth * 16}px` }}>
+          <NodeInfo node={node} compact />
+        </div>
+      )}
       {isDir && isOpen && node.kids!.map((k) => <TreeRow key={k.name} node={k} depth={depth + 1} sel={sel} onSel={onSel} open={open} toggle={toggle} path={`${path}/${k.name}`} />)}
+    </>
+  )
+}
+
+function NodeInfo({ node, compact }: { node: Node; compact?: boolean }) {
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {!compact && <h3 style={{ fontFamily: 'var(--mono)', fontSize: 16, wordBreak: 'break-word' }}>{node.name}</h3>}
+        {node.tag && (
+          <span className="chip" style={{ background: `hsl(${TAG_HUE[node.tag]} 80% 92%)`, color: `hsl(${TAG_HUE[node.tag]} 60% 30%)`, borderColor: 'transparent' }}>
+            {node.tag}
+          </span>
+        )}
+      </div>
+      <p style={{ margin: compact ? '4px 0 0' : '10px 0 0', color: 'var(--ink-2)', fontSize: compact ? 14 : undefined }}>{node.info}</p>
     </>
   )
 }
@@ -392,16 +413,6 @@ export function RepoExplorer() {
   const [open, setOpen] = useState<Set<string>>(new Set(['pstack/']))
   const [sel, setSel] = useState('pstack/')
   const [node, setNode] = useState<Node>(TREE)
-  const [seen, setSeen] = useState<Set<string>>(new Set(['pstack/']))
-  const total = useMemo(() => {
-    let n = 0
-    const walk = (x: Node) => {
-      n++
-      x.kids?.forEach(walk)
-    }
-    walk(TREE)
-    return n
-  }, [])
   const toggle = (p: string) => {
     const next = new Set(open)
     if (next.has(p)) next.delete(p)
@@ -410,7 +421,7 @@ export function RepoExplorer() {
   }
   return (
     <div className="widget split">
-      <div className="card" style={{ padding: 6, maxHeight: 380, overflow: 'auto' }}>
+      <div className="card repo-tree" style={{ padding: 6 }}>
         <TreeRow
           node={TREE}
           depth={0}
@@ -418,35 +429,16 @@ export function RepoExplorer() {
           onSel={(p, n) => {
             setSel(p)
             setNode(n)
-            setSeen((s) => new Set(s).add(p))
           }}
           open={open}
           toggle={toggle}
           path="pstack/"
         />
       </div>
-      <div>
-        <>
-          <motion.div key={sel} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="card" style={{ padding: 18 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h3 style={{ fontFamily: 'var(--mono)', fontSize: 16, wordBreak: 'break-word' }}>{node.name}</h3>
-              {node.tag && (
-                <span className="chip" style={{ background: `hsl(${TAG_HUE[node.tag]} 80% 92%)`, color: `hsl(${TAG_HUE[node.tag]} 60% 30%)`, borderColor: 'transparent' }}>
-                  {node.tag}
-                </span>
-              )}
-            </div>
-            <p style={{ margin: '10px 0 0', color: 'var(--ink-2)' }}>{node.info}</p>
-          </motion.div>
-        </>
-        <div style={{ marginTop: 12 }}>
-          <div className="bar">
-            <div style={{ width: `${(seen.size / total) * 100}%` }} />
-          </div>
-          <p className="muted" style={{ fontSize: 13, fontWeight: 600, margin: '6px 0 0' }}>
-            Explored {seen.size} of {total} items
-          </p>
-        </div>
+      <div className="repo-side">
+        <motion.div key={sel} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="card" style={{ padding: 18 }}>
+          <NodeInfo node={node} />
+        </motion.div>
       </div>
     </div>
   )

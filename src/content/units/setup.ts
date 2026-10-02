@@ -25,13 +25,21 @@ export const setup: Unit = {
           title: 'pstack lives inside a bigger repo',
           body: `pstack is one folder inside **cursor/plugins** on GitHub, a repo that holds many Cursor plugins. Everything for pstack sits under \`pstack/\`.
 
-The good news: it is mostly **Markdown**. There is very little "real" code. The skills are written instructions, so you can read them like documentation.`,
+The good news: it is mostly **Markdown**. There is very little "real" code. The skills are written instructions, so you can read them like documentation.
+
+Five places matter:
+
+- **\`.cursor-plugin/plugin.json\`**: the plugin's ID card. Name, version, description, and where the skills and agents live.
+- **\`skills/\`**: the heart of pstack. One folder per skill, including \`poteto-mode\` with its 23 playbooks, plus **23 principle skills** named \`principle-*\`.
+- **\`agents/\`**: personas for subagents, like **Comment Sicko**, a reviewer who hates code comments.
+- **\`docs/guide/\`**: a 10-page tutorial for humans. This course follows it.
+- **\`automations/benny/\`**: **Benny**, a dormant automation that triages bug reports from Slack.`,
           callout: { tone: 'tip', text: 'You can open any SKILL.md on GitHub and read it like an article. That is the best way to go deeper after this course.' },
         },
         {
           kind: 'widget',
           title: 'Explore the folders',
-          intro: 'Click any folder or file to learn what lives there.',
+          intro: 'Optional: tap anything you want to know more about. You have already seen everything the questions need.',
           widget: 'repo-explorer',
         },
         {
