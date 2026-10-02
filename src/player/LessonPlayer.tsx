@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Lesson, Step, Unit } from '../content/types'
 import { isQuestion } from '../content/types'
 import { lessonKey, nextLesson } from '../content/course'
-import { completeLesson, markStarted, masteryOf, MASTERY_LABEL, useProfile, type CompletionResult } from '../lib/store'
+import { completeLesson, markStarted, saveLessonProgress, masteryOf, MASTERY_LABEL, useProfile, type CompletionResult } from '../lib/store'
 import { BADGES } from '../lib/badges'
 import { Markdown, Inline } from '../components/Markdown'
 import { MasteryIcon } from '../components/ui'
@@ -101,12 +101,13 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
   const navigate = useNavigate()
   const profile = useProfile()
   const key = lessonKey(unit.id, lesson.id)
-  const [index, setIndex] = useState(0)
+  const saved = profile?.progress?.[key]
+  const [index, setIndex] = useState(() => (saved && saved.index < lesson.steps.length ? saved.index : 0))
   const [status, setStatus] = useState<Status>('idle')
   const [ready, setReady] = useState(false)
   const correctRef = useRef(false)
   const [attempts, setAttempts] = useState(0)
-  const [firstTry, setFirstTry] = useState<Record<number, boolean>>({})
+  const [firstTry, setFirstTry] = useState<Record<number, boolean>>(() => (saved && saved.index < lesson.steps.length ? saved.firstTry : {}))
   const [done, setDone] = useState<null | (CompletionResult & { score: number })>(null)
   const [showHint, setShowHint] = useState(false)
   const [runId, setRunId] = useState(0)
@@ -118,6 +119,11 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
   useEffect(() => {
     markStarted(key)
   }, [key])
+
+  useEffect(() => {
+    if (done) return
+    saveLessonProgress(key, index === 0 && Object.keys(firstTry).length === 0 ? null : { index, firstTry })
+  }, [key, index, firstTry, done])
 
   const onChange = useCallback((r: boolean, c: boolean) => {
     setReady(r)

@@ -11,6 +11,8 @@ export type LessonRecord = {
 
 export type Theme = 'system' | 'light' | 'dark'
 
+export type LessonProgress = { index: number; firstTry: Record<number, boolean> }
+
 export type Profile = {
   id: string
   name: string
@@ -24,6 +26,7 @@ export type Profile = {
   activity: Record<string, number>
   badges: Partial<Record<BadgeId, string>>
   lastLesson?: string
+  progress?: Record<string, LessonProgress>
   settings: { theme: Theme; sound: boolean }
 }
 
@@ -123,7 +126,7 @@ export function editProfile(patch: Partial<Pick<Profile, 'name' | 'avatar' | 'hu
 }
 
 export function resetProgress() {
-  updateActive((p) => ({ ...p, xp: 0, lessons: {}, started: {}, activity: {}, badges: {}, lastLesson: undefined }))
+  updateActive((p) => ({ ...p, xp: 0, lessons: {}, started: {}, activity: {}, badges: {}, lastLesson: undefined, progress: {} }))
 }
 
 export function markStarted(key: string) {
@@ -132,6 +135,15 @@ export function markStarted(key: string) {
     lastLesson: key,
     started: p.started[key] ? p.started : { ...p.started, [key]: new Date().toISOString() },
   }))
+}
+
+export function saveLessonProgress(key: string, entry: LessonProgress | null) {
+  updateActive((p) => {
+    const progress = { ...p.progress }
+    if (entry) progress[key] = entry
+    else delete progress[key]
+    return { ...p, progress }
+  })
 }
 
 export function addXp(amount: number) {
@@ -159,8 +171,11 @@ export function completeLesson(key: string, score: number, kind: 'learn' | 'prac
     lastAt: now,
   }
   const d = today()
+  const progress = { ...p.progress }
+  delete progress[key]
   const next: Profile = {
     ...p,
+    progress,
     xp: p.xp + xpGained,
     lessons: { ...p.lessons, [key]: record },
     activity: { ...p.activity, [d]: (p.activity[d] ?? 0) + xpGained },

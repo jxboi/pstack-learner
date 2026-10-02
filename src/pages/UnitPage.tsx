@@ -51,6 +51,7 @@ export function UnitPage() {
             <div className="card" style={{ padding: 8 }}>
               {unit.lessons.map((l, i) => {
                 const rec = profile.lessons[lessonKey(unit.id, l.id)]
+                const saved = profile.progress?.[lessonKey(unit.id, l.id)]
                 const level = masteryOf(rec)
                 const meta = KIND_META[l.kind]
                 return (
@@ -67,7 +68,13 @@ export function UnitPage() {
                         <p>{l.summary}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-                        {rec && <span className="muted" style={{ fontSize: 12.5, fontWeight: 700 }}>{Math.round(rec.best * 100)}%</span>}
+                        {saved ? (
+                          <span className="chip" style={{ fontSize: 12, fontWeight: 700 }}>
+                            Step {saved.index + 1}/{l.steps.length}
+                          </span>
+                        ) : (
+                          rec && <span className="muted" style={{ fontSize: 12.5, fontWeight: 700 }}>{Math.round(rec.best * 100)}%</span>
+                        )}
                         <MasteryIcon level={level} />
                       </div>
                     </Link>
