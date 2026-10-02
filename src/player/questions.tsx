@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import type { McqStep, MultiStep, OrderStep, MatchStep, SortStep, SpotStep } from '../content/types'
 import { Inline, CodeBlock } from '../components/Markdown'
@@ -12,6 +12,9 @@ export type QProps<S> = {
 }
 
 const LETTERS = 'ABCDEFGH'
+
+// Clicking an answer must not focus it: Enter should check the answer, not re-press the tile.
+const keepFocus = (e: React.MouseEvent) => e.preventDefault()
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -36,8 +39,10 @@ function useKeyPick(count: number, enabled: boolean, pick: (i: number) => void) 
     if (!enabled) return
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      const n = Number(e.key)
-      if (n >= 1 && n <= count) pick(n - 1)
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const k = e.key.toUpperCase()
+      const pos = /^[1-9]$/.test(k) ? Number(k) - 1 : LETTERS.indexOf(k)
+      if (pos >= 0 && pos < count) pick(pos)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -47,8 +52,19 @@ function useKeyPick(count: number, enabled: boolean, pick: (i: number) => void) 
 export function Mcq({ step, checked, onChange }: QProps<McqStep>) {
   const order = useMemo(() => seededOrder(step.options.length, step.q), [step])
   const [sel, setSel] = useState<number | null>(null)
+  const [ruledOut, setRuledOut] = useState<Set<number>>(new Set())
+  const wasChecked = useRef(checked)
+  useEffect(() => {
+    // On "Try again", rule out the wrong pick so the learner chooses afresh.
+    if (wasChecked.current && !checked && sel !== null && sel !== step.answer) {
+      setRuledOut((r) => new Set(r).add(sel))
+      setSel(null)
+      onChange(false, false)
+    }
+    wasChecked.current = checked
+  }, [checked, sel, step.answer, onChange])
   const pick = (i: number) => {
-    if (checked) return
+    if (checked || ruledOut.has(i)) return
     sfx.tap()
     setSel(i)
     onChange(true, i === step.answer)
@@ -60,11 +76,13 @@ export function Mcq({ step, checked, onChange }: QProps<McqStep>) {
       <div className="options" role="radiogroup">
         {order.map((i, pos) => {
           const o = step.options[i]
+          const out = ruledOut.has(i)
           let cls = 'option'
           if (checked && sel === i) cls += i === step.answer ? ' right' : ' wrong'
           else if (sel === i) cls += ' selected'
+          else if (out) cls += ' ruled-out'
           return (
-            <button key={i} className={cls} onClick={() => pick(i)} disabled={checked} role="radio" aria-checked={sel === i}>
+            <button key={i} className={cls} onClick={() => pick(i)} onMouseDown={keepFocus} disabled={checked || out} role="radio" aria-checked={sel === i}>
               <span className="key">{LETTERS[pos]}</span>
               <span>
                 <Inline text={o} />
@@ -110,7 +128,7 @@ export function Multi({ step, checked, onChange }: QProps<MultiStep>) {
             else if (!on && shouldBe) cls += ' selected'
           } else if (on) cls += ' selected'
           return (
-            <button key={i} className={cls} onClick={() => toggle(i)} disabled={checked} role="checkbox" aria-checked={on}>
+            <button key={i} className={cls} onClick={() => toggle(i)} onMouseDown={keepFocus} disabled={checked} role="checkbox" aria-checked={on}>
               <span className="key">{on ? '✓' : LETTERS[pos]}</span>
               <span>
                 <Inline text={o} />
@@ -149,10 +167,10 @@ export function Order({ step, checked, onChange }: QProps<OrderStep>) {
               <Inline text={step.items[itemIdx]} />
             </span>
             <span className="moves">
-              <button className="icon-btn" aria-label="Move up" onClick={() => move(pos, -1)} disabled={checked || pos === 0}>
+              <button className="icon-btn" aria-label="Move up" onClick={() => move(pos, -1)} onMouseDown={keepFocus} disabled={checked || pos === 0}>
                 ▲
               </button>
-              <button className="icon-btn" aria-label="Move down" onClick={() => move(pos, 1)} disabled={checked || pos === order.length - 1}>
+              <button className="icon-btn" aria-label="Move down" onClick={() => move(pos, 1)} onMouseDown={keepFocus} disabled={checked || pos === order.length - 1}>
                 ▼
               </button>
             </span>
@@ -195,20 +213,28 @@ export function Match({ step, checked, onChange }: QProps<MatchStep>) {
     sfx.tap()
     const ownerKey = Object.entries(pairsRef.current).find(([, v]) => v === r)?.[0]
     const owner = ownerKey === undefined ? undefined : Number(ownerKey)
+    const next = { ...pairsRef.current }
     if (owner !== undefined) {
-      const next = { ...pairsRef.current }
       delete next[owner]
-      commit(next)
-      return
+      if (selLeft === null) {
+        commit(next)
+        return
+      }
     }
-    const l = selLeft ?? [...step.pairs.keys()].find((i) => pairsRef.current[i] === undefined)
+    const l = selLeft ?? [...step.pairs.keys()].find((i) => next[i] === undefined)
     if (l === undefined) return
-    commit({ ...pairsRef.current, [l]: r })
+    commit({ ...next, [l]: r })
     setSelLeft(null)
   }
 
   const order = Object.keys(pairs).map(Number)
   const colorOf = (l: number) => PAIR_HUES[order.indexOf(l) % PAIR_HUES.length]
+  const tint = (l: number) => (checked ? undefined : { borderColor: `hsl(${colorOf(l)} 60% 55%)`, background: `color-mix(in srgb, hsl(${colorOf(l)} 70% 55%) 10%, var(--surface))` })
+  const dot = (l: number) => (
+    <span className="pair-dot" style={{ background: `hsl(${colorOf(l)} 65% 50%)` }}>
+      {order.indexOf(l) + 1}
+    </span>
+  )
 
   return (
     <>
@@ -216,41 +242,29 @@ export function Match({ step, checked, onChange }: QProps<MatchStep>) {
         Tap an item on the left, then its partner on the right. Tap a pair again to undo.
       </p>
       <div className="match-grid">
-        <div className="match-col">
-          {step.pairs.map(([left], l) => {
-            const paired = pairs[l] !== undefined
-            let cls = 'match-tile'
-            if (checked && paired) cls += pairs[l] === l ? ' right' : ' wrong'
-            else if (selLeft === l) cls += ' selected'
-            return (
-              <button key={l} className={cls} onClick={() => clickLeft(l)} disabled={checked}>
-                {paired && (
-                  <span className="pair-dot" style={{ background: `hsl(${colorOf(l)} 65% 50%)` }}>
-                    {order.indexOf(l) + 1}
-                  </span>
-                )}
+        {step.pairs.map(([left], l) => {
+          const paired = pairs[l] !== undefined
+          let cls = 'match-tile'
+          if (checked && paired) cls += pairs[l] === l ? ' right' : ' wrong'
+          else if (selLeft === l) cls += ' selected'
+          const r = rightOrder[l]
+          const owner = pairedRight.get(r)
+          let rcls = 'match-tile'
+          if (checked && owner !== undefined) rcls += owner === r ? ' right' : ' wrong'
+          else if (selLeft !== null && owner === undefined) rcls += ' armed'
+          return (
+            <Fragment key={l}>
+              <button className={cls} onClick={() => clickLeft(l)} onMouseDown={keepFocus} disabled={checked} style={paired && selLeft !== l ? tint(l) : undefined}>
+                {paired && dot(l)}
                 <Inline text={left} />
               </button>
-            )
-          })}
-        </div>
-        <div className="match-col">
-          {rightOrder.map((r) => {
-            const owner = pairedRight.get(r)
-            let cls = 'match-tile'
-            if (checked && owner !== undefined) cls += owner === r ? ' right' : ' wrong'
-            return (
-              <button key={r} className={cls} onClick={() => clickRight(r)} disabled={checked}>
-                {owner !== undefined && (
-                  <span className="pair-dot" style={{ background: `hsl(${colorOf(owner)} 65% 50%)` }}>
-                    {order.indexOf(owner) + 1}
-                  </span>
-                )}
+              <button className={rcls} onClick={() => clickRight(r)} onMouseDown={keepFocus} disabled={checked} style={owner !== undefined ? tint(owner) : undefined}>
+                {owner !== undefined && dot(owner)}
                 <Inline text={step.pairs[r][1]} />
               </button>
-            )
-          })}
-        </div>
+            </Fragment>
+          )
+        })}
       </div>
     </>
   )
@@ -261,6 +275,10 @@ export function Sort({ step, checked, onChange }: QProps<SortStep>) {
   const [placed, setPlaced] = useState<Record<number, number>>({})
   const placedRef = useRef(placed)
   const [sel, setSel] = useState<number | null>(null)
+  // Hold the pool at its starting height so the boxes below don't jump up under the pointer as it empties.
+  const poolRef = useRef<HTMLDivElement>(null)
+  const [poolHeight, setPoolHeight] = useState<number>()
+  useLayoutEffect(() => setPoolHeight(poolRef.current?.offsetHeight), [])
 
   const commit = (next: Record<number, number>) => {
     placedRef.current = next
@@ -305,6 +323,7 @@ export function Sort({ step, checked, onChange }: QProps<SortStep>) {
           e.stopPropagation()
           pickItem(i)
         }}
+        onMouseDown={keepFocus}
         disabled={checked}
       >
         <Inline text={step.items[i].text} />
@@ -317,7 +336,7 @@ export function Sort({ step, checked, onChange }: QProps<SortStep>) {
       <p className="muted" style={{ marginTop: -8, fontWeight: 600, fontSize: 14 }}>
         Tap an item, then tap the box it belongs in. Tap a placed item to move it back.
       </p>
-      <div className="sort-pool" aria-label="Unsorted items">
+      <div className="sort-pool" aria-label="Unsorted items" ref={poolRef} style={{ minHeight: poolHeight }}>
         {pool.length ? pool.map(chip) : <span className="muted" style={{ fontSize: 14, fontWeight: 600, alignSelf: 'center' }}>All sorted. Press Check.</span>}
       </div>
       <div className="sort-buckets">
@@ -326,9 +345,16 @@ export function Sort({ step, checked, onChange }: QProps<SortStep>) {
             key={bi}
             className={`bucket ${sel !== null && !checked ? 'armed' : ''}`}
             onClick={() => dropIn(bi)}
+            onMouseDown={keepFocus}
             role="button"
-            tabIndex={0}
-            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && dropIn(bi)}
+            tabIndex={checked ? -1 : 0}
+            aria-label={`Put in ${b}`}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              e.stopPropagation()
+              dropIn(bi)
+            }}
           >
             <h5>{b}</h5>
             {itemOrder.filter((i) => placed[i] === bi).map(chip)}
@@ -378,17 +404,29 @@ export function Spot({ step, checked, onChange }: QProps<SpotStep>) {
             else if (sel.has(i) && !s.target) cls += ' wrong'
             else if (!sel.has(i) && s.target) cls += ' missed'
           } else if (sel.has(i)) cls += ' selected'
+          // Keep surrounding spaces outside the tappable span so each phrase reads as its own target.
+          const [, lead, core, trail] = s.text.match(/^(\s*)([\s\S]*?)(\s*)$/) ?? ['', '', s.text, '']
           return (
-            <span
-              key={i}
-              className={cls}
-              onClick={() => toggle(i)}
-              role="button"
-              tabIndex={checked ? -1 : 0}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggle(i))}
-            >
-              {s.text}
-            </span>
+            <Fragment key={i}>
+              {lead}
+              <span
+                className={cls}
+                onClick={() => toggle(i)}
+                onMouseDown={keepFocus}
+                role="button"
+                aria-pressed={sel.has(i)}
+                tabIndex={checked ? -1 : 0}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  toggle(i)
+                }}
+              >
+                {core}
+              </span>
+              {trail}
+            </Fragment>
           )
         })}
       </div>

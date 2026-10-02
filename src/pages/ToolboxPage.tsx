@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { course } from '../content/course'
 import type { WidgetStep } from '../content/types'
@@ -75,6 +75,11 @@ export function ToolboxPage() {
   const [params, setParams] = useSearchParams()
   const tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as (typeof TABS)[number]) : 'Prompt workbench'
   const setTab = (t: (typeof TABS)[number]) => setParams({ tab: t }, { replace: true })
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // On phones the tab row scrolls; keep the active tab visible when arriving via a deep link.
+    tabsRef.current?.querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [tab])
   const [group, setGroup] = useState<string>('All')
   const groups = ['All', ...Array.from(new Set(PLAYBOOKS.map((p) => p.group)))]
   return (
@@ -84,7 +89,7 @@ export function ToolboxPage() {
         <p className="muted" style={{ margin: '6px 0 18px', fontSize: 16 }}>
           Reference and tools for using pstack on your own projects.
         </p>
-        <div className="pill-tabs" style={{ marginBottom: 18 }}>
+        <div className="pill-tabs scroll" style={{ marginBottom: 18 }} ref={tabsRef}>
           {TABS.map((t) => (
             <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
               {t}
@@ -111,7 +116,7 @@ export function ToolboxPage() {
 
         {tab === 'Playbooks' && (
           <>
-            <div className="pill-tabs" style={{ marginBottom: 14 }}>
+            <div className="pill-tabs scroll" style={{ marginBottom: 14 }}>
               {groups.map((g) => (
                 <button key={g} className={group === g ? 'on' : ''} onClick={() => setGroup(g)}>
                   {g}

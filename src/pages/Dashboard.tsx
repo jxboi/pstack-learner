@@ -1,12 +1,16 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { course, lessonKey } from '../content/course'
+import { course, findLesson, lessonKey } from '../content/course'
 import type { Profile } from '../lib/store'
 import { courseMastery, levelOf, masteryOf, streakOf, today, unitMastery } from '../lib/store'
 import { BADGES, type BadgeId } from '../lib/badges'
 import { Avatar, KIND_META, MasteryIcon, MasteryLegend, Ring } from '../components/ui'
 
 function nextUp(p: Profile) {
+  // Resume the lesson the learner left mid-way before suggesting a new one.
+  const [lu, ll] = p.lastLesson?.split('/') ?? []
+  const last = p.lastLesson && p.progress?.[p.lastLesson] ? findLesson(lu, ll) : null
+  if (last) return { unit: last.unit, lesson: last.lesson }
   for (const u of course) for (const l of u.lessons) if (!p.lessons[lessonKey(u.id, l.id)]) return { unit: u, lesson: l }
   for (const u of course) for (const l of u.lessons) if (masteryOf(p.lessons[lessonKey(u.id, l.id)]) !== 'mastered') return { unit: u, lesson: l }
   return null
@@ -24,11 +28,12 @@ export function Dashboard({ profile }: { profile: Profile }) {
   const hour = new Date().getHours()
   const greet = hour < 5 ? 'Burning the midnight oil' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
   const started = up && profile.started[lessonKey(up.unit.id, up.lesson.id)]
+  const saved = up && profile.progress?.[lessonKey(up.unit.id, up.lesson.id)]
 
   return (
     <main className="page">
       <div className="container">
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card" style={{ padding: 24, display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', background: `linear-gradient(120deg, color-mix(in srgb, hsl(${profile.hue} 80% 80%) 30%, var(--surface)), var(--surface) 60%)` }}>
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card dash-hero" style={{ padding: 24, display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', background: `linear-gradient(120deg, color-mix(in srgb, hsl(${profile.hue} 80% 80%) 30%, var(--surface)), var(--surface) 60%)` }}>
           <Avatar emoji={profile.avatar} hue={profile.hue} size={72} />
           <div style={{ flex: 1, minWidth: 220 }}>
             <div className="eyebrow">
@@ -48,7 +53,7 @@ export function Dashboard({ profile }: { profile: Profile }) {
           </div>
           {up && (
             <Link to={`/learn/${up.unit.id}/${up.lesson.id}`} className="btn btn-primary btn-lg">
-              {done === 0 ? 'Start the course' : started ? 'Continue' : 'Next lesson'} →
+              {done === 0 && !saved ? 'Start the course' : started ? 'Continue' : 'Next lesson'} →
             </Link>
           )}
         </motion.section>
@@ -56,18 +61,32 @@ export function Dashboard({ profile }: { profile: Profile }) {
         <div className="grid-2" style={{ marginTop: 24 }}>
           <div>
             {up && (
-              <Link to={`/learn/${up.unit.id}/${up.lesson.id}`} className="card unit-card" style={{ marginBottom: 8, borderWidth: 2, borderColor: `hsl(${up.unit.hue} 60% 70%)` }}>
-                <div className="lesson-kind" style={{ background: `hsl(${up.unit.hue} 80% 92%)`, width: 56, height: 56, fontSize: 26 }}>
+              <Link to={`/learn/${up.unit.id}/${up.lesson.id}`} className="card up-next" style={{ borderColor: `hsl(${up.unit.hue} 60% 70%)` }}>
+                <div className="lesson-kind" style={{ background: `hsl(${up.unit.hue} 80% 92%)` }}>
                   {up.unit.icon}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="eyebrow">Up next · Unit {up.unit.index}</div>
-                  <h3>{up.lesson.title}</h3>
-                  <div className="tag" style={{ margin: '2px 0 0' }}>
-                    {KIND_META[up.lesson.kind].icon} {KIND_META[up.lesson.kind].label} · {up.lesson.minutes} min · {up.lesson.summary}
+                  <div className="eyebrow">
+                    {saved ? 'Keep going' : 'Up next'} · Unit {up.unit.index}
                   </div>
+                  <h3>{up.lesson.title}</h3>
+                  <div className="tag">
+                    {KIND_META[up.lesson.kind].label} · {up.lesson.minutes} min · {up.lesson.summary}
+                  </div>
+                  {saved && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                      <div className="bar" style={{ flex: 1, maxWidth: 240, height: 8 }}>
+                        <div style={{ width: `${(saved.index / up.lesson.steps.length) * 100}%`, background: 'linear-gradient(90deg,var(--gold),#f59e0b)' }} />
+                      </div>
+                      <span className="muted" style={{ fontSize: 12.5, fontWeight: 700 }}>
+                        Step {saved.index + 1} of {up.lesson.steps.length}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <span style={{ fontSize: 24, color: 'var(--brand)' }}>→</span>
+                <span className="up-next-arrow" aria-hidden>
+                  →
+                </span>
               </Link>
             )}
 

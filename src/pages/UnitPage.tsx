@@ -14,7 +14,11 @@ export function UnitPage() {
   const prev = course[unit.index - 2]
   const next = course[unit.index]
   const terms = GLOSSARY.filter((t) => t.unit === unit.id)
-  const firstOpen = unit.lessons.find((l) => !profile.lessons[lessonKey(unit.id, l.id)]) ?? unit.lessons[0]
+  const keyOf = (id: string) => lessonKey(unit.id, id)
+  const inProgress = unit.lessons.find((l) => profile.lastLesson === keyOf(l.id) && profile.progress?.[keyOf(l.id)]) ?? unit.lessons.find((l) => profile.progress?.[keyOf(l.id)])
+  const firstOpen = unit.lessons.find((l) => !profile.lessons[keyOf(l.id)])
+  const target = inProgress ?? firstOpen ?? unit.lessons[0]
+  const cta = inProgress ? 'Continue' : !firstOpen ? 'Review' : m === 0 ? 'Start unit' : 'Continue'
 
   return (
     <main className="page">
@@ -38,8 +42,8 @@ export function UnitPage() {
             </h1>
             <p style={{ margin: 0, fontSize: 17, opacity: 0.95 }}>{unit.tagline}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 20, flexWrap: 'wrap' }}>
-              <Link to={`/learn/${unit.id}/${firstOpen.id}`} className="btn btn-lg" style={{ background: 'white', color: `hsl(${unit.hue} 55% 30%)` }}>
-                {m === 0 ? 'Start unit' : m === 100 ? 'Review' : 'Continue'} →
+              <Link to={`/learn/${unit.id}/${target.id}`} className="btn btn-lg" style={{ background: 'white', color: `hsl(${unit.hue} 55% 30%)` }}>
+                {cta} →
               </Link>
               <span style={{ fontWeight: 800 }}>{m}% mastered</span>
             </div>
@@ -56,25 +60,25 @@ export function UnitPage() {
                 const meta = KIND_META[l.kind]
                 return (
                   <motion.div key={l.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                    <Link to={`/learn/${unit.id}/${l.id}`} className="lesson-item">
+                    <Link to={`/learn/${unit.id}/${l.id}`} className={`lesson-item ${l.id === target.id && (inProgress || firstOpen) ? 'current' : ''}`}>
                       <div className="lesson-kind" style={{ background: `hsl(${meta.hue} 80% 92%)` }}>
                         {meta.icon}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="eyebrow" style={{ fontSize: 11 }}>
                           {meta.label} · {l.minutes} min
+                          {saved && (
+                            <span style={{ color: 'var(--brand)' }}>
+                              {' '}
+                              · Step {saved.index + 1}/{l.steps.length}
+                            </span>
+                          )}
                         </div>
                         <h4>{l.title}</h4>
                         <p>{l.summary}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-                        {saved ? (
-                          <span className="chip" style={{ fontSize: 12, fontWeight: 700 }}>
-                            Step {saved.index + 1}/{l.steps.length}
-                          </span>
-                        ) : (
-                          rec && <span className="muted" style={{ fontSize: 12.5, fontWeight: 700 }}>{Math.round(rec.best * 100)}%</span>
-                        )}
+                        {rec && <span className="muted" style={{ fontSize: 12.5, fontWeight: 700 }}>{Math.round(rec.best * 100)}%</span>}
                         <MasteryIcon level={level} />
                       </div>
                     </Link>

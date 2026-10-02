@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { animate, motion, useReducedMotion } from 'motion/react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Lesson, Step, Unit } from '../content/types'
 import { isQuestion } from '../content/types'
 import { lessonKey, nextLesson } from '../content/course'
-import { completeLesson, markStarted, saveLessonProgress, masteryOf, MASTERY_LABEL, useProfile, type CompletionResult } from '../lib/store'
+import { completeLesson, levelOf, markStarted, saveLessonProgress, masteryOf, MASTERY_LABEL, useProfile, type CompletionResult } from '../lib/store'
 import { BADGES } from '../lib/badges'
 import { Markdown, Inline } from '../components/Markdown'
 import { MasteryIcon } from '../components/ui'
@@ -15,6 +15,17 @@ import { celebrate, sfx } from '../lib/fx'
 type Status = 'idle' | 'correct' | 'wrong'
 
 const CALLOUT_ICON = { tip: '💡', warn: '⚠️', analogy: '🧠', key: '🔑' } as const
+
+function CountUp({ to, delay = 0 }: { to: number; delay?: number }) {
+  const reduce = useReducedMotion()
+  const [n, setN] = useState(reduce ? to : 0)
+  useEffect(() => {
+    if (reduce) return setN(to)
+    const c = animate(0, to, { duration: 0.9, delay, ease: [0.2, 0.8, 0.2, 1], onUpdate: (v) => setN(Math.round(v)) })
+    return () => c.stop()
+  }, [to, delay, reduce])
+  return <>{n}</>
+}
 
 function StepView({ step, checked, onChange }: { step: Step; checked: boolean; onChange: (r: boolean, c: boolean) => void }) {
   switch (step.kind) {
@@ -108,7 +119,7 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
   const correctRef = useRef(false)
   const [attempts, setAttempts] = useState(0)
   const [firstTry, setFirstTry] = useState<Record<number, boolean>>(() => (saved && saved.index < lesson.steps.length ? saved.firstTry : {}))
-  const [done, setDone] = useState<null | (CompletionResult & { score: number })>(null)
+  const [done, setDone] = useState<null | (CompletionResult & { score: number; levelUp: number | null })>(null)
   const [showHint, setShowHint] = useState(false)
   const [runId, setRunId] = useState(0)
 
@@ -134,27 +145,30 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
     (ft: Record<number, boolean>) => {
       const right = Object.values(ft).filter(Boolean).length
       const score = questionCount ? right / questionCount : 1
+      const before = levelOf(profile?.xp ?? 0).level
       const result = completeLesson(key, score, lesson.kind, right * 5)
+      const after = levelOf((profile?.xp ?? 0) + result.xpGained).level
       sfx.complete()
-      celebrate(score >= 1 || lesson.kind === 'quiz')
-      setDone({ ...result, score })
+      celebrate(score >= 1 || lesson.kind === 'quiz' || after > before)
+      setDone({ ...result, score, levelUp: after > before ? after : null })
     },
-    [key, lesson.kind, questionCount],
+    [key, lesson.kind, questionCount, profile?.xp],
   )
 
-  const advance = useCallback(() => {
-    if (index + 1 >= lesson.steps.length) {
-      finish(firstTry)
-      return
-    }
-    setIndex(index + 1)
+  const goTo = useCallback((i: number) => {
+    setIndex(i)
     setStatus('idle')
     setReady(false)
     setAttempts(0)
     setShowHint(false)
     correctRef.current = false
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [index, lesson.steps.length, finish, firstTry])
+  }, [])
+
+  const advance = useCallback(() => {
+    if (index + 1 >= lesson.steps.length) finish(firstTry)
+    else goTo(index + 1)
+  }, [index, lesson.steps.length, finish, firstTry, goTo])
 
   const check = useCallback(() => {
     if (!ready) return
@@ -162,12 +176,11 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
     if (ok) {
       sfx.correct()
       setStatus('correct')
-      if (attempts === 0) setFirstTry((f) => ({ ...f, [index]: true }))
     } else {
       sfx.wrong()
       setStatus('wrong')
-      if (attempts === 0) setFirstTry((f) => ({ ...f, [index]: false }))
     }
+    if (attempts === 0) setFirstTry((f) => (index in f ? f : { ...f, [index]: ok }))
     setAttempts((a) => a + 1)
   }, [ready, attempts, index])
 
@@ -180,7 +193,9 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' || done) return
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
-      if (e.target instanceof HTMLButtonElement && !e.target.dataset.primary) return
+      // Other buttons keep their own Enter, except a chosen answer, where Enter means "check".
+      const chosen = e.target instanceof HTMLElement && e.target.getAttribute('role') === 'radio' && e.target.getAttribute('aria-checked') === 'true'
+      if (e.target instanceof HTMLButtonElement && !e.target.dataset.primary && !chosen) return
       e.preventDefault()
       if (!question || status === 'correct') advance()
       else if (status === 'idle') check()
@@ -191,10 +206,7 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
   }, [question, status, advance, check, done])
 
   const restart = () => {
-    setIndex(0)
-    setStatus('idle')
-    setReady(false)
-    setAttempts(0)
+    goTo(0)
     setFirstTry({})
     setDone(null)
     setRunId((r) => r + 1)
@@ -232,7 +244,7 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
               <div className="complete-stat" style={{ borderColor: 'var(--gold)' }}>
                 <div className="k">XP earned</div>
                 <div className="v" style={{ color: 'var(--warn)' }}>
-                  +{done.xpGained}
+                  +<CountUp to={done.xpGained} delay={0.25} />
                 </div>
               </div>
               <div className="complete-stat" style={{ borderColor: 'var(--good)' }}>
@@ -243,11 +255,19 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
               </div>
               <div className="complete-stat" style={{ borderColor: 'var(--m-proficient)' }}>
                 <div className="k">Mastery</div>
-                <div className="v" style={{ fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 39 }}>
+                <div className="v mastery-v" style={{ fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 39 }}>
                   <MasteryIcon level={level} /> {MASTERY_LABEL[level]}
                 </div>
               </div>
             </div>
+            {done.levelUp && profile && (
+              <motion.div className="level-up" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
+                <span className="level-up-num">{done.levelUp}</span>
+                <span>
+                  <strong>Level up!</strong> You are now a <strong>{levelOf(profile.xp).title}</strong>.
+                </span>
+              </motion.div>
+            )}
             {done.newBadges.length > 0 && (
               <div style={{ marginBottom: 24 }}>
                 <div className="eyebrow" style={{ marginBottom: 10 }}>
@@ -278,12 +298,16 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
               <button className="btn btn-ghost" onClick={restart}>
                 ↻ Retry
               </button>
-              <button className="btn btn-ghost" onClick={() => navigate(`/unit/${unit.id}`)}>
+              <button className={`btn ${nxt ? 'btn-ghost' : 'btn-primary'}`} onClick={() => navigate(`/unit/${unit.id}`)} autoFocus={!nxt}>
                 Back to unit
               </button>
               {nxt && (
-                <button className="btn btn-primary" onClick={() => navigate(`/learn/${nxt.unit.id}/${nxt.lesson.id}`)}>
-                  Next: {nxt.lesson.title} →
+                <button className="btn btn-primary next-btn" onClick={() => navigate(`/learn/${nxt.unit.id}/${nxt.lesson.id}`)} autoFocus>
+                  <span>
+                    {nxt.unit.id !== unit.id ? `Unit ${nxt.unit.index}: ` : 'Next: '}
+                    {nxt.lesson.title}
+                  </span>{' '}
+                  →
                 </button>
               )}
             </div>
@@ -350,36 +374,42 @@ export function LessonPlayer({ unit, lesson }: { unit: Unit; lesson: Lesson }) {
                 {attempts >= 2 ? <Markdown text={explain} /> : <Markdown text={hint ?? 'Take another look and try again. You can do this.'} />}
               </motion.div>
             )}
-            {status === 'idle' && !question && <span className="muted idle-hint" style={{ fontWeight: 600, fontSize: 14 }}>Press Enter or Continue when you are ready.</span>}
-            {status === 'idle' && question && !ready && <span className="muted idle-hint" style={{ fontWeight: 600, fontSize: 14 }}>Answer to continue.</span>}
+            {status === 'idle' && (
+              <span className="muted idle-hint">{!question ? 'Press Enter to continue.' : ready ? 'Press Enter to check.' : 'Answer to continue.'}</span>
+            )}
           </div>
-          {!question && (
-            <button className="btn btn-primary btn-lg" data-primary="1" onClick={advance}>
-              {index + 1 >= lesson.steps.length ? 'Finish' : 'Continue'}
-            </button>
-          )}
-          {question && status === 'idle' && (
-            <button className="btn btn-primary btn-lg" data-primary="1" onClick={check} disabled={!ready}>
-              Check
-            </button>
-          )}
-          {question && status === 'correct' && (
-            <button className="btn btn-good btn-lg" data-primary="1" onClick={advance} autoFocus>
-              {index + 1 >= lesson.steps.length ? 'Finish' : 'Continue'}
-            </button>
-          )}
-          {question && status === 'wrong' && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {attempts >= 2 && (
-                <button className="btn btn-ghost btn-lg" onClick={advance}>
-                  Skip
-                </button>
-              )}
+          <div className="foot-actions">
+            {index > 0 && status === 'idle' && (
+              <button className="btn btn-ghost btn-lg back-btn" onClick={() => goTo(index - 1)} onMouseDown={(e) => e.preventDefault()} aria-label="Previous step" title="Previous step">
+                ←
+              </button>
+            )}
+            {!question && (
+              <button className="btn btn-primary btn-lg" data-primary="1" onClick={advance}>
+                {index + 1 >= lesson.steps.length ? 'Finish' : 'Continue'}
+              </button>
+            )}
+            {question && status === 'idle' && (
+              <button className="btn btn-primary btn-lg" data-primary="1" onClick={check} disabled={!ready}>
+                Check
+              </button>
+            )}
+            {question && status === 'correct' && (
+              <button className="btn btn-good btn-lg" data-primary="1" onClick={advance} autoFocus>
+                {index + 1 >= lesson.steps.length ? 'Finish' : 'Continue'}
+              </button>
+            )}
+            {question && status === 'wrong' && attempts >= 2 && (
+              <button className="btn btn-ghost btn-lg" onClick={advance}>
+                Skip
+              </button>
+            )}
+            {question && status === 'wrong' && (
               <button className="btn btn-bad btn-lg" data-primary="1" onClick={retry} autoFocus>
                 Try again
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
