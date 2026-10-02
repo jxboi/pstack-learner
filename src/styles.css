@@ -640,10 +640,31 @@ textarea.input {
   max-width: 620px;
   margin: 16px 0 28px;
 }
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+}
 @media (max-width: 640px) {
   .hero {
-    padding: 28px 20px;
+    padding: 24px 18px;
     border-radius: 20px;
+  }
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .hero-logo {
+    order: -1;
+    width: 84px !important;
+    border-width: 4px !important;
+    border-radius: 22px !important;
+    margin-bottom: 16px;
+  }
+  .hero-chip {
+    white-space: normal;
+    border-radius: 12px;
   }
 }
 
@@ -713,6 +734,9 @@ textarea.input {
   position: relative;
   z-index: 1;
   box-shadow: var(--shadow-2);
+}
+.unit-badge.here {
+  box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--brand), var(--shadow-2);
 }
 .unit-card {
   padding: 18px 20px;
@@ -1618,6 +1642,18 @@ textarea.input {
   padding: 18px;
   overflow: hidden;
 }
+.widget .btn {
+  /* long answer labels wrap instead of being clipped by the widget */
+  white-space: normal;
+  max-width: 100%;
+  text-align: left;
+}
+@media (max-width: 640px) {
+  .widget {
+    padding: 12px;
+    border-radius: 14px;
+  }
+}
 .widget-toolbar {
   display: flex;
   gap: 8px;
@@ -1795,6 +1831,19 @@ textarea.input {
   background: var(--bg-2);
 }
 
+.profile-tile .profile-del {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.profile-tile:hover .profile-del,
+.profile-tile:focus-within .profile-del {
+  opacity: 1;
+}
+@media (hover: none) {
+  .profile-tile .profile-del {
+    opacity: 1;
+  }
+}
 .avatar-pick {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));

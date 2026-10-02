@@ -11,11 +11,18 @@ const NAV = [
   { to: '/profile', label: 'Profile', icon: '👤' },
 ]
 
+const THEME_COLOR = { light: '#f6f4ef', dark: '#15131c' }
+
 export function useApplyTheme(theme: Theme | undefined) {
   useEffect(() => {
     const el = document.documentElement
     if (!theme || theme === 'system') delete el.dataset.theme
     else el.dataset.theme = theme
+    // Keep the browser chrome (iOS status bar, Android toolbar) in step with a theme picked in the app.
+    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
+      const own = m.media.includes('dark') ? THEME_COLOR.dark : THEME_COLOR.light
+      m.content = !theme || theme === 'system' ? own : THEME_COLOR[theme]
+    })
   }, [theme])
 }
 
@@ -29,8 +36,13 @@ export function Layout() {
     const close = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
     }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc)
+    }
   }, [open])
 
   const lvl = profile ? levelOf(profile.xp) : null

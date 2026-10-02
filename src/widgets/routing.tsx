@@ -60,11 +60,20 @@ export function Router() {
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-        <span className="mono" style={{ alignSelf: 'center', color: 'var(--brand)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+      <div style={{ display: 'flex', gap: '6px 8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="mono" style={{ color: 'var(--brand)', fontWeight: 700, whiteSpace: 'nowrap' }}>
           /poteto-mode
         </span>
-        <input className="input mono" style={{ fontSize: 14 }} value={text} onChange={(e) => setText(e.target.value)} onBlur={() => setFired((f) => f + 1)} placeholder="type a task…" aria-label="Prompt" />
+        <textarea
+          className="input mono"
+          rows={2}
+          style={{ fontSize: 14, flex: '1 1 240px', minHeight: 0, resize: 'none' }}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => setFired((f) => f + 1)}
+          placeholder="type a task…"
+          aria-label="Prompt"
+        />
       </div>
 
       <div style={{ position: 'relative', margin: '18px 0 6px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8 }}>

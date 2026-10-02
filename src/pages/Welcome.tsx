@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { course, totalMinutes } from '../content/course'
-import { createProfile, deleteProfile, levelOf, switchProfile, useStore, importProfile } from '../lib/store'
+import { createProfile, deleteProfile, levelOf, switchProfile, useStore, importProfile, type Profile } from '../lib/store'
 import { AVATARS, Avatar, HUES } from '../components/ui'
 
 const GOALS = [
@@ -17,6 +17,8 @@ const FEATURES = [
   { icon: '🛠️', hue: 150, title: 'Use it on your code', text: 'A prompt workbench turns what you learned into prompts for your own project.' },
 ]
 
+const lastSeen = (p: Profile) => [p.createdAt, ...Object.values(p.started), ...Object.values(p.lessons).map((r) => r.lastAt)].reduce((a, b) => (b > a ? b : a))
+
 export function Welcome() {
   const profileMap = useStore((s) => s.profiles)
   const profiles = useMemo(() => Object.values(profileMap), [profileMap])
@@ -27,6 +29,7 @@ export function Welcome() {
   const [goal, setGoal] = useState(60)
   const [importMsg, setImportMsg] = useState<string | null>(null)
   const lessons = course.reduce((a, u) => a + u.lessons.length, 0)
+  const recent = profiles.reduce<Profile | null>((best, p) => (!best || lastSeen(p) > lastSeen(best) ? p : best), null)
 
   const onImport = (file: File) => {
     file
@@ -39,9 +42,9 @@ export function Welcome() {
     <main className="page">
       <div className="container">
         <section className="hero">
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 24, alignItems: 'center' }}>
+          <div className="hero-grid">
             <div>
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="chip" style={{ background: 'var(--surface)', marginBottom: 16 }}>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="chip hero-chip" style={{ background: 'var(--surface)', marginBottom: 16 }}>
                 🍠 For complete beginners · {course.length} units · {lessons} lessons · ~{Math.round(totalMinutes() / 5) * 5} min
               </motion.div>
               <motion.h1 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -50,13 +53,20 @@ export function Welcome() {
               <motion.p className="lede" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                 pstack is a set of skills that turns a Cursor AI agent into a careful engineering team. This academy explains it in plain words, with animations, games and quizzes, until you can use it on your own projects.
               </motion.p>
-              {!creating && profiles.length > 0 && (
-                <button className="btn btn-primary btn-lg" onClick={() => setCreating(true)}>
-                  + New learner
-                </button>
+              {!creating && recent && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary btn-lg" onClick={() => switchProfile(recent.id)}>
+                    <Avatar emoji={recent.avatar} hue={recent.hue} size={28} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>Continue as {recent.name}</span> →
+                  </button>
+                  <button className="btn btn-ghost btn-lg" onClick={() => setCreating(true)}>
+                    + New learner
+                  </button>
+                </div>
               )}
             </div>
             <motion.img
+              className="hero-logo"
               src="/pstack-logo.png"
               alt="poteto eating a sweet potato"
               initial={{ rotate: -8, scale: 0.8, opacity: 0 }}
@@ -74,7 +84,7 @@ export function Welcome() {
                 <h2 style={{ fontSize: 20, marginBottom: 14 }}>Who's learning?</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 12 }}>
                   {profiles.map((p) => (
-                    <div key={p.id} style={{ position: 'relative' }}>
+                    <div key={p.id} className="profile-tile" style={{ position: 'relative' }}>
                       <button className="card" onClick={() => switchProfile(p.id)} style={{ width: '100%', padding: 16, cursor: 'pointer', textAlign: 'center', background: 'var(--surface-2)' }}>
                         <Avatar emoji={p.avatar} hue={p.hue} size={64} />
                         <div style={{ fontWeight: 800, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
@@ -83,7 +93,7 @@ export function Welcome() {
                         </div>
                       </button>
                       <button
-                        className="icon-btn"
+                        className="icon-btn profile-del"
                         aria-label={`Delete ${p.name}`}
                         title="Delete learner"
                         style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, fontSize: 11 }}

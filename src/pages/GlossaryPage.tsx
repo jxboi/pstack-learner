@@ -25,7 +25,7 @@ export function GlossaryPage() {
           Every pstack term in one plain sentence. {GLOSSARY.length} terms.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
-          <input className="input" style={{ maxWidth: 360 }} placeholder="Search terms…" value={q} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })} aria-label="Search glossary" />
+          <input type="search" className="input" style={{ maxWidth: 360 }} placeholder="Search terms…" value={q} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })} aria-label="Search glossary" />
           <div className="pill-tabs scroll">
             {(['All', ...TAGS] as const).map((t) => (
               <button key={t} className={tag === t ? 'on' : ''} onClick={() => setTag(t)}>

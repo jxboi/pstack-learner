@@ -103,7 +103,7 @@ export function Dashboard({ profile }: { profile: Profile }) {
                 return (
                   <motion.div key={u.id} className="unit-row" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
                     <div className="unit-node">
-                      <div className="unit-badge" style={{ background: `linear-gradient(145deg, hsl(${u.hue} 80% 86%), hsl(${u.hue} 65% 70%))` }}>
+                      <div className={`unit-badge ${up?.unit.id === u.id ? 'here' : ''}`} title={up?.unit.id === u.id ? 'You are here' : undefined} style={{ background: `linear-gradient(145deg, hsl(${u.hue} 80% 86%), hsl(${u.hue} 65% 70%))` }}>
                         {u.icon}
                         {complete && (
                           <span style={{ position: 'absolute', right: -6, bottom: -6, width: 26, height: 26, borderRadius: 99, background: 'var(--good)', color: 'white', display: 'grid', placeItems: 'center', fontSize: 13, border: '3px solid var(--bg)' }}>✓</span>

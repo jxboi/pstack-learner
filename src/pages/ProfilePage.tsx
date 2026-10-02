@@ -37,6 +37,36 @@ function Heatmap({ profile }: { profile: Profile }) {
   )
 }
 
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+
+// How far along a locked badge is, for the ones with a count to show.
+function badgeProgress(b: BadgeId, p: Profile): [number, number] | null {
+  const done = Object.keys(p.lessons).length
+  const total = course.reduce((a, u) => a + u.lessons.length, 0)
+  const bestUnit = Math.max(...course.map((u) => u.lessons.filter((l) => p.lessons[lessonKey(u.id, l.id)]).length / u.lessons.length))
+  const principles = course.find((u) => u.id === 'principles')
+  switch (b) {
+    case 'ten-lessons':
+      return [done, 10]
+    case 'streak-3':
+      return [streakOf(p), 3]
+    case 'streak-7':
+      return [streakOf(p), 7]
+    case 'xp-500':
+      return [p.xp, 500]
+    case 'xp-1500':
+      return [p.xp, 1500]
+    case 'graduate':
+      return [done, total]
+    case 'unit-complete':
+      return [Math.round(bestUnit * 100), 100]
+    case 'principled':
+      return principles ? [principles.lessons.filter((l) => masteryOf(p.lessons[lessonKey(principles.id, l.id)]) === 'mastered').length, principles.lessons.length] : null
+    default:
+      return null
+  }
+}
+
 export function ProfilePage({ profile }: { profile: Profile }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(profile.name)
@@ -45,7 +75,7 @@ export function ProfilePage({ profile }: { profile: Profile }) {
   const mastered = Object.values(profile.lessons).filter((r) => masteryOf(r) === 'mastered').length
   const quizzes = course.flatMap((u) => u.lessons.filter((l) => l.kind === 'quiz').map((l) => profile.lessons[lessonKey(u.id, l.id)])).filter(Boolean)
   const avgQuiz = quizzes.length ? Math.round((quizzes.reduce((a, r) => a + r!.best, 0) / quizzes.length) * 100) : 0
-  const joined = new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const joined = fmtDate(profile.createdAt)
 
   const download = () => {
     const blob = new Blob([exportProfile()], { type: 'application/json' })
@@ -191,6 +221,7 @@ export function ProfilePage({ profile }: { profile: Profile }) {
               <div className="badge-grid">
                 {(Object.keys(BADGES) as BadgeId[]).map((b) => {
                   const got = profile.badges[b]
+                  const prog = got ? null : badgeProgress(b, profile)
                   return (
                     <div key={b} className={`card badge ${got ? '' : 'locked'}`}>
                       <div className="medal" style={{ background: `radial-gradient(circle at 30% 30%, hsl(${BADGES[b].hue} 90% 92%), hsl(${BADGES[b].hue} 70% 72%))` }}>
@@ -198,7 +229,17 @@ export function ProfilePage({ profile }: { profile: Profile }) {
                       </div>
                       <h4>{BADGES[b].title}</h4>
                       <p>{BADGES[b].desc}</p>
-                      {got && <p style={{ color: 'var(--good)', fontWeight: 700 }}>Earned {new Date(got).toLocaleDateString()}</p>}
+                      {got && <p style={{ color: 'var(--good)', fontWeight: 700 }}>Earned {fmtDate(got)}</p>}
+                      {prog && prog[0] > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div className="bar" style={{ height: 6 }}>
+                            <div style={{ width: `${Math.min(100, (prog[0] / prog[1]) * 100)}%`, background: `hsl(${BADGES[b].hue} 65% 55%)` }} />
+                          </div>
+                          <p style={{ fontWeight: 700 }}>
+                            {b === 'unit-complete' ? `${prog[0]}% of a unit` : `${Math.min(prog[0], prog[1]).toLocaleString()} / ${prog[1].toLocaleString()}`}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
