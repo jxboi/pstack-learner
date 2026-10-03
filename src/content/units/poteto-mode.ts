@@ -53,16 +53,18 @@ And one playbook runs at the **end of almost every other one**: **Opening a PR**
         {
           kind: 'mcq',
           q: 'You ask: "why was the retry limit set to five? don\'t change anything." Which playbook fits?',
-          options: ['Bug fix', 'Feature', 'Investigation', 'Shipping'],
+          options: ['Bug fix', 'Feature', 'Investigation', 'Refactoring'],
           answer: 2,
-          explain: 'A read-only "why" question with "don\'t change anything" is an Investigation. The output is a cited answer, not code.',
+          explain: 'A read-only "why" question with "don\'t change anything" is an Investigation. The output is a cited answer, not code. The other three all change code.',
+          hint: 'Will this task change any code?',
         },
         {
           kind: 'mcq',
           q: 'You want to migrate 300 call sites to a new API, and review the result tomorrow. Where does poteto-mode route it?',
-          options: ['Feature', 'figure-it-out', 'Investigation', 'Pause safely'],
+          options: ['Feature', 'figure-it-out', 'Investigation', 'Refactoring'],
           answer: 1,
-          explain: 'Large cross-cutting work, or work you review after stepping away, goes to figure-it-out, even if Feature also sort of fits.',
+          explain: 'A migration is structural, so Refactoring is tempting. But Refactoring is for focused-to-medium changes. Large cross-cutting work, or work you review after stepping away, goes to figure-it-out, which designs a playbook for the job.',
+          hint: 'Two details matter: 300 call sites, and "review tomorrow".',
         },
         {
           kind: 'recap',
@@ -94,10 +96,12 @@ And one playbook runs at the **end of almost every other one**: **Opening a PR**
           title: 'What the Bug fix playbook demands',
           body: `Notice how strict the Bug fix playbook is:
 
-- **Reproduce it yourself** first, on the same surface the user saw (the real UI, the real CLI).
-- **Binary-search the cause.** Make hypotheses, then eliminate them with runtime evidence. No guessing.
-- **Verify on the same surface.** "Unit tests pass" is not the same as "the bug is gone".
-- **Failing repro lands before the fix** in git history, so a reviewer can watch it go red, then green.
+1. **Reproduce it yourself** first, on the same surface the user saw (the real UI, the real CLI). Asking the user to reproduce is a last resort.
+2. **Binary-search the cause.** Make hypotheses, then eliminate them with runtime evidence. No guessing.
+3. **Plan the fix.** If it crosses a function boundary, run \`/architect\` first. Then hand the code-writing to a subagent while the main agent stays in the lead.
+4. **Verify on the same surface.** "Unit tests pass" is not the same as "the bug is gone".
+5. **Tidy the history** so the failing repro commit sits *before* the fix. A reviewer can then check out the first commit, watch it fail, and watch the next one pass. This happens after verifying, when the commits get arranged for review.
+6. **Open the PR.**
 
 The reply then states what was broken, the root cause, the fix, and the proof.`,
           callout: { tone: 'key', text: 'Every shipped line must trace back to runtime evidence. A change that "might help" is a hypothesis, not a fix.' },
@@ -110,22 +114,24 @@ The reply then states what was broken, the root cause, the fix, and the proof.`,
             'Binary-search the cause with runtime evidence',
             'Plan the fix and delegate it to a subagent',
             'Verify the original repro now passes',
-            'Commit the failing repro before the fix',
+            'Arrange commits so the failing repro comes first in history',
             'Run Opening a PR',
           ],
-          explain: 'Reproduce, find the cause, fix, verify, sequence the commits, open the PR.',
+          explain: 'Reproduce, find the cause, fix, verify, then arrange the commits for review, then open the PR. Arranging commits is about what the reviewer sees in history, so it happens once the fix is proven.',
+          hint: 'You cannot find a cause for a bug you have not seen, and you cannot arrange commits that do not exist yet.',
         },
         {
           kind: 'mcq',
           q: 'The agent added a null check "just in case" and the crash stopped. What would the Bug fix playbook say?',
           options: [
-            'Ship it, the crash is gone',
-            'It is a hypothesis, not a fix. Find why the value is null.',
-            'Add more null checks to be safe',
-            'Ask the user to reproduce it',
+            'Ship it. The crash is gone, which is the evidence.',
+            'It is a hypothesis. Find why the value is null.',
+            'Keep it, and add null checks nearby to be safe',
+            'Ask the user to confirm the crash is gone for them',
           ],
           answer: 1,
-          explain: 'Guards that silence a crash fix the symptom. The playbook demands the root cause and evidence.',
+          explain: 'The crash stopping is not evidence the cause is gone. The null came from somewhere, and that somewhere may still corrupt data quietly. The playbook calls a "might help" change a hypothesis, and hypotheses do not ship.',
+          hint: 'The crash is gone. Is the reason the value was null gone too?',
         },
       ],
     },
@@ -164,7 +170,8 @@ When the chat already has the context, prompts can shrink to almost nothing: \`/
             { text: 'use /how, then /architect, then /arena, then /tdd. ', target: true, why: 'Listing skills by hand overrides the playbook\'s own order and often drops steps it would have kept.' },
             { text: 'repro first, then fix and verify.' },
           ],
-          explain: 'Do not enumerate skills. The playbook already sequences them. Name a skill only to override one specific choice.',
+          explain: 'Do not enumerate skills. The playbook already sequences them, and a hand-written list overrides it and often drops steps. Name a skill only to override one specific choice. "repro first" stays: it is a constraint about *what* you want, not a list of tools.',
+          hint: 'One part tells the agent how to do its job, step by step.',
         },
         {
           kind: 'multi',
@@ -176,7 +183,8 @@ When the chat already has the context, prompts can shrink to almost nothing: \`/
             '"work on the parser for a while"',
           ],
           answers: [1, 2],
-          explain: '"Before and after" and "byte-identical" can pass or fail. "Better" and "for a while" give the agent nothing to check.',
+          explain: '"Before and after" and "byte-identical" can pass or fail. "Better" and "for a while" give the agent nothing to check, so it will stop whenever it feels done.',
+          hint: 'For each one, ask: could the agent prove it is finished?',
         },
         {
           kind: 'recap',
@@ -242,19 +250,21 @@ Worktrees pile up. When disk gets tight: "what's eating my disk? prune the workt
             { text: 'Delete customer data', bucket: 1 },
             { text: 'Post a status update in team chat', bucket: 0 },
           ],
-          explain: 'Reversible work proceeds. Irreversible writes (deploys, force-push to shared branches, data deletion, customer messages) always pause.',
+          explain: 'The test is "can this be undone?". A branch, a todo, or a team-chat post can be fixed after the fact. A deploy, a force-push over teammates\' work, or deleted data cannot. Those always pause.',
+          hint: 'For each one, ask: if this is wrong, can it be cleanly undone?',
         },
         {
           kind: 'mcq',
           q: 'You are mid-Feature and ask "why does the cache survive logout?". The agent starts editing cache code. What should you have said?',
           options: [
-            'Nothing, this is correct',
+            'Nothing. The agent misread a clear question.',
             '"new task" and "don\'t change any code yet"',
             '"use /how then /why then /teach"',
-            '"please"',
+            '"/poteto-mode" again before the question',
           ],
           answer: 1,
-          explain: '"new task" forces a re-match, and "don\'t change any code yet" pins Investigation.',
+          explain: '"new task" forces a re-match, and "don\'t change any code yet" pins Investigation. Retyping /poteto-mode does not help: the mode is already on, and it is still mid-Feature. Listing skills is the pitfall from the last lesson.',
+          hint: 'The agent thought this was the next step of the feature. What tells it otherwise?',
         },
       ],
     },
@@ -266,6 +276,29 @@ Worktrees pile up. When disk gets tight: "what's eating my disk? prune the workt
       summary: 'Match real prompts to the playbook they trigger.',
       steps: [
         {
+          kind: 'read',
+          title: 'The playbook menu',
+          body: `You have met Bug fix, Feature and Investigation. Here are the others you will use most, grouped by what they are for. You do not need to memorize them: /poteto-mode does the matching. Knowing the menu helps you notice when it picked the wrong one.
+
+**Build**
+- **Refactoring**: change structure, not behavior. Pins current behavior first.
+- **Prototype**: throwaway sketches to make a design decision cheaply.
+
+**Diagnose**
+- **Perf issue**: a measured slowness, fixed against a before/after.
+- **Hillclimb**: push one number toward a target over many attempts.
+- **Runtime forensics**: a live symptom, like a memory leak or a CPU that never idles.
+
+**Ship**
+- **Babysit**: drive an open PR to merge-ready. It never merges.
+- **Shipping**: verify a stack independently, then land it.
+
+**Run**
+- **Session pickup**: take over work another chat left mid-flight.
+- **Worktree cleanup**: free disk by pruning old worktrees safely.`,
+          callout: { tone: 'tip', text: 'The Toolbox page lists all 23 playbooks with example prompts.' },
+        },
+        {
           kind: 'match',
           q: 'Match each prompt to its playbook.',
           pairs: [
@@ -274,7 +307,8 @@ Worktrees pile up. When disk gets tight: "what's eating my disk? prune the workt
             ['"babysit this pr. get it green."', 'Babysit'],
             ['"take over this branch. read the decision log and continue."', 'Session pickup'],
           ],
-          explain: 'Measured slowness is Perf issue, structure-only is Refactoring, PR status is Babysit, resuming prior work is Session pickup.',
+          explain: 'Measured slowness is Perf issue, structure-only is Refactoring, getting a PR green is Babysit, resuming prior work is Session pickup.',
+          hint: 'Look for the signal words: "before and after", "zero behavior change", "green", "take over".',
         },
         {
           kind: 'match',
@@ -286,25 +320,28 @@ Worktrees pile up. When disk gets tight: "what's eating my disk? prune the workt
             ['"what\'s eating my disk?"', 'Worktree cleanup'],
           ],
           explain: 'Throwaway design sketches are Prototype. Landing is Shipping. A live symptom is Runtime forensics. Disk is Worktree cleanup.',
+          hint: '"land" is a shipping word. "idles at 30%" is a symptom you watch live.',
         },
         {
           kind: 'mcq',
           q: 'What is the difference between Babysit and Shipping?',
           options: [
-            'They are the same',
-            'Babysit drives a PR to merge-ready and never merges. Shipping verifies independently, then lands.',
-            'Shipping is for bugs, Babysit for features',
-            'Babysit merges, Shipping deploys',
+            'Babysit handles one PR, Shipping handles a stack',
+            'Babysit stops at merge-ready. Shipping verifies and lands.',
+            'Babysit merges, Shipping deploys to production',
+            'Babysit fixes CI, Shipping fixes review comments',
           ],
           answer: 1,
-          explain: 'Babysit stops at merge-ready because merging is a different decision. Shipping begins where Babysit ends.',
+          explain: 'Babysit stops at merge-ready because merging is a separate decision that belongs to you. Shipping begins where Babysit ends: it re-verifies with fresh agents, then lands. Both can work on single PRs or stacks.',
+          hint: 'Which of the two is allowed to merge?',
         },
         {
           kind: 'mcq',
           q: '"Improve the p95 search latency again and again until it\'s under 120ms, at least 10 attempts." Which playbook?',
           options: ['Perf issue', 'Hillclimb', 'Feature', 'Eval'],
           answer: 1,
-          explain: 'Sustained, repeated improvement of one metric against a target is Hillclimb. Perf issue is a one-off fix.',
+          explain: 'Perf issue is tempting because it is about speed. But "again and again", a target, and a minimum number of attempts describe Hillclimb: many measured tries at one number. Perf issue is one traced fix.',
+          hint: 'Notice "again and again" and "at least 10 attempts".',
         },
       ],
     },
@@ -319,58 +356,69 @@ Worktrees pile up. When disk gets tight: "what's eating my disk? prune the workt
           kind: 'mcq',
           q: 'What is the first thing /poteto-mode does with your prompt?',
           options: [
-            'Writes code immediately',
-            'Matches it to a playbook and copies the steps into a todo list',
-            'Asks you ten clarifying questions',
-            'Opens a PR',
+            'Runs /how to understand the code it will touch',
+            'Matches a playbook and copies its steps into a todo list',
+            'Asks you clarifying questions about the goal',
+            'Picks which model should handle the whole task',
           ],
           answer: 1,
-          explain: 'Match, then copy the playbook\'s steps in word for word.',
+          explain: 'Match first, then copy the playbook\'s steps in word for word. /how may well run next, but only because the playbook says so.',
+          hint: 'Everything else happens because of the step that comes first.',
         },
         {
           kind: 'mcq',
           q: 'Why can a prompt as short as "continue" work?',
           options: [
-            'The model guesses',
+            'The agent remembers your last long prompt and repeats it',
             'The mode is sticky and the playbook already holds the structure',
-            'Cursor autocompletes it',
-            'It does not work',
+            'Short prompts make the agent work faster',
+            'It only works right after a new chat starts',
           ],
           answer: 1,
-          explain: 'Your words carry intent. The playbook carries the rigor.',
+          explain: 'Your words carry intent. The playbook carries the rigor. Once the todo list exists, "continue" just means "do the next item".',
+          hint: 'Where do the steps live, if not in your message?',
         },
         {
           kind: 'mcq',
           q: 'Which phrase makes poteto-mode re-match instead of continuing the last playbook?',
-          options: ['"hurry up"', '"new task"', '"/bro"', '"use arena"'],
+          options: ['"stop"', '"new task"', '"/poteto-mode" again', '"reset"'],
           answer: 1,
-          explain: '"new task" signals a subject change.',
+          explain: '"new task" signals a subject change, so it matches a playbook from scratch. Retyping /poteto-mode keeps the old playbook going, because the mode is already on.',
+          hint: 'It is the exact phrase from the "New tasks" lesson.',
         },
         {
           kind: 'mcq',
           q: 'Two agents work in the same folder and keep overwriting each other. The fix?',
-          options: ['Add a lock file', 'Give each its own git worktree', 'Run them slower', 'Use one agent forever'],
+          options: [
+            'Put each agent on its own branch in the same folder',
+            'Give each its own git worktree',
+            'Make them take turns editing',
+            'Add a lock file so only one writes at a time',
+          ],
           answer: 1,
-          explain: 'Separate the shared thing first. Each agent gets its own worktree.',
+          explain: 'Separate branches in **one folder** still share one set of files on disk, so they still collide. A worktree is a separate folder. Taking turns and locks work, but they make parallel agents wait for each other. Separate the shared thing first.',
+          hint: 'A branch is a label. What do two agents physically write to?',
         },
         {
           kind: 'mcq',
           q: 'Which of these would poteto-mode always pause for?',
-          options: ['Writing a test', 'Editing a doc', 'A production deploy', 'Splitting todos'],
+          options: ['Writing a test', 'Posting a status update in team chat', 'A production deploy', 'Rewriting a module on a branch'],
           answer: 2,
-          explain: 'Deploys are irreversible. Everything else here is reversible and proceeds.',
+          explain: 'Deploys reach real users and cannot be cleanly taken back. A team-chat post feels public, but it is internal and easy to correct, so it proceeds. A big rewrite on a branch is still just a branch.',
+          hint: 'Big or public is not the test. Can it be undone?',
         },
         {
           kind: 'mcq',
           q: 'You propose a feature the agent thinks is a bad idea. What does poteto-mode do?',
           options: [
-            'Builds it anyway without comment',
+            'Builds it, since you are the one in charge',
             'Says plainly that it doesn\'t earn its place, and why',
-            'Refuses all further work',
-            'Opens an issue',
+            'Builds a smaller version without telling you',
+            'Asks you a few questions until you change your mind',
           ],
           answer: 1,
-          explain: '"No is an acceptable answer." Candor over sycophancy.',
+          explain: '"No is an acceptable answer." Candor over agreeing. Quietly shrinking it is worse than either building it or pushing back, because you do not find out.',
+          hint: 'One of the autonomy rules was about honesty.',
         },
       ],
     },
